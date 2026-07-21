@@ -5,3 +5,14 @@ Project scripts in SQL and R for database interrogation and data analysis
 Code lists from opencodelists in SNOMED-CT for identifying cases
 
 core datasets not available publically, as very sensitive data with specific controls.
+
+Opencodelist links
+https://www.opencodelists.org/codelist/user/davidohagan/ckd-and-mental-health-cohort-identification/2814758e/
+https://www.opencodelists.org/codelist/user/davidohagan/ckd-and-mental-health-descriptive-variables/2ac73584/
+https://www.opencodelists.org/codelist/user/davidohagan/ckd-and-mental-health-mental-health-addiction/5f98dbe4/
+https://www.opencodelists.org/codelist/user/davidohagan/ckd-and-mental-health-mental-health-severe-mental-illness/78a84f19/
+https://www.opencodelists.org/codelist/user/davidohagan/ckd-and-mental-health-mental-health-autism-and-adhd/468968af/
+https://www.opencodelists.org/codelist/user/davidohagan/ckd-and-mental-health-mental-health-dementia/75f58f23/
+https://www.opencodelists.org/codelist/user/davidohagan/ckd-and-mental-health-mental-health-depression-and-anxiety/0f050259/
+https://www.opencodelists.org/codelist/user/davidohagan/ckd-and-mental-health-outcome-variables/11b7c24f/
+https://www.opencodelists.org/codelist/user/davidohagan/ckd-and-mental-health-specific-codes/493c28a5/
