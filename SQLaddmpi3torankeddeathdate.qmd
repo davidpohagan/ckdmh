@@ -1,0 +1,206 @@
+---
+title: "03 making combined tables "
+format: html
+---
+
+## A
+
+This code is useable for the sql-uks-dme-01 database
+
+
+```{r}
+#| label: library
+#| echo: false
+#| message: false
+#| warning: false
+
+library(DBI)
+library(odbc)
+library(lcmm)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+
+con <- dbConnect(odbc(), driver = "ODBC Driver 18 for SQL Server", 
+                      server = "sql-uks-dme-01.database.windows.net", 
+                      database = "sql-nw-dme-01",
+                      UID = "David.O-hagan@acp.ardengemcsu.nhs.uk",
+                      Authentication = "ActiveDirectoryInteractive", 
+                 ,TrustServerCertificate = "yes"
+                 ,Encrypt = 'yes',timeout = 10)
+#dbListTables(con, )
+#dbListFields(con,"DOH101_openegfrCodes")
+#dbDisconnect(con)
+```
+
+```{sql connection = con, output.var = "M2_results"}
+/*select  
+
+MIN(CASE WHEN [ConceptID] in (  select gfr.[ConceptID]
+       from [Client_BTP_RW].[DOH101_openegfrCodes] gfr
+    
+)
+       
+       and TRY_CAST([Value] as decimal(10,2)) < 30.00 THEN [Date] END)
+        
+       OVER(PARTITION BY [Pseudo_NHS_Number]) as [First30Date]
+
+from [Client_BTP_RW].[DOH101_fullinforanked] */
+
+
+select top 10  *
+from [Client_BTP_RW].[DOH101_PCA]
+union all
+select top 10 * from [Client_BTP_RW].[DOH101_PCAa] 
+union all
+select top 10  * from [Client_BTP_RW].[DOH101_PCAb]
+union all
+select top 10 * from [Client_BTP_RW].[DOH101_PCAc]
+
+
+where [ConceptID] in (select gfr.[ConceptID]
+       from [Client_BTP_RW].[DOH101_openegfrCodes] gfr
+        union all 
+        select ckd.[ConceptID]
+        from [Client_BTP_RW].[DOH101_CKDCodes] ckd
+        union all
+         select ckd.[ConceptID]
+         from [Client_BTP_RW].[DOH101_CKDCodes] ckd
+        union all
+         select acr.[ConceptID] 
+         from [Client_BTP_RW].[DOH101_openacrCodes] acr
+        union all
+         select adc.[ConceptID] 
+         from [Client_BTP_RW].[DOH101_openaddictCodes] adc
+        union all
+         select aut.[ConceptID] 
+         from [Client_BTP_RW].[DOH101_openautCodes] aut
+        union all
+         select dem.[ConceptID] 
+         from [Client_BTP_RW].[DOH101_opendemCodes] dem
+        union all
+         select dep.[ConceptID] 
+         from [Client_BTP_RW].[DOH101_opendepCodes] dep
+        union all
+         select outc.[ConceptID] 
+         from [Client_BTP_RW].[DOH101_openoutcomesCodes] outc
+        union all
+         select outr.[ConceptID] 
+         from [Client_BTP_RW].[DOH101_openoutcomesrrtCodes] outr
+        union all
+        select smi.[ConceptID] 
+         from [Client_BTP_RW].[DOH101_opensmiCodes] smi
+        union all
+        select val.[ConceptID] 
+         from [Client_BTP_RW].[DOH101_openvaluesCodes] val
+        
+    /*    "DOH101_openacrCodes"                                                
+  [57] "DOH101_openaddictCodes"                                             
+  [58] "DOH101_openautCodes"                                                
+  [59] "DOH101_opendemCodes"                                                
+  [60] "DOH101_opendepCodes"                                                
+  [61] "DOH101_openegfrCodes"                                               
+  [62] "DOH101_openoutcomesCodes"                                           
+  [63] "DOH101_openoutcomesrrtCodes"                                        
+  [64] "DOH101_opensmiCodes"                                                
+  [65] "DOH101_openvaluesCodes" */
+        
+        )
+
+
+```
+
+
+```{r}
+
+head(M2_results)
+
+
+
+```
+
+
+
+
+```{sql connection = con, output.var = "M2_results"}
+drop table [Client_BTP_RW].[DOH101_fullinforanked]
+SELECT mpi.[Pseudo_NHS_Number]
+      ,[X_CCG_OF_REGISTRATION]
+      ,[X_CCG_OF_RESIDENCE]
+      ,[Dob]
+      ,[Sex]
+      ,[EthnicGroupAlgorithm]
+      ,[EthnicMainGroup]
+      ,[InterpreterRequired]
+      ,[Deceased]
+      ,[DeathDate]
+      ,[LSOA_Code]
+      ,[IMD_Score]
+      ,[imd_numeric]
+      ,[quintile_section]
+       ,[Value]
+      ,[Date]
+      ,[First60Date]
+      ,DATEDIFF(year, try_cast([Dob]+'-01' as date),[Date]) as AgeatDate
+      ,[ConceptID]
+      ,[value_num]
+      ,[hasCKD]
+      ,[Label]
+      ,[Isover30dunder60]
+      ,[daysSinceFirst]
+      ,[DM_flag]
+      ,[Dem_flag]
+      ,[Dep_flag]
+      ,[Shiz_flag]
+      ,[BP_flag]
+      ,[Adhd_flag]
+      ,[Anx_flag]
+      ,[Aut_flag]
+      ,[bipolar_flag]
+     
+
+into [Client_BTP_RW].[DOH101_fullinforanked]
+
+  FROM [Client_BTP_RW].[DOH003_MPI] as mpi
+  
+  left join [Client_BTP_RW].[DOH002_MPI] as mpi1
+  on mpi1.[Pseudo_NHS_Number] = mpi.[Pseudo_NHS_Number]
+
+  left join [Client_BTP_RW].[DOH101_rankedegfrckd_wholecohort] as rckd
+  on rckd.[Pseudo_NHS_Number] =    mpi.[Pseudo_NHS_Number]
+
+  left join [Client_BTP_RW].[DOH101_DM] as dm
+  on rckd.[Pseudo_NHS_Number] = dm.[Pseudo_NHS_Number]
+
+    left join [Client_BTP_RW].[DOH101_Dem] as dem
+  on rckd.[Pseudo_NHS_Number] = dem.[Pseudo_NHS_Number]
+
+   left join [Client_BTP_RW].[DOH101_Dep] as dep
+  on rckd.[Pseudo_NHS_Number] = dep.[Pseudo_NHS_Number]
+
+
+    left join [Client_BTP_RW].[DOH101_Schiz] as sz
+  on rckd.[Pseudo_NHS_Number] = sz.[Pseudo_NHS_Number]
+    left join [Client_BTP_RW].[DOH101_hypertension] as bp
+  on rckd.[Pseudo_NHS_Number] = bp.[Pseudo_NHS_Number]
+
+    left join [Client_BTP_RW].[DOH101_adhd] as ad
+  on rckd.[Pseudo_NHS_Number] = ad.[Pseudo_NHS_Number] 
+
+    left join [Client_BTP_RW].[DOH101_anx] as ax
+  on rckd.[Pseudo_NHS_Number] = ax.[Pseudo_NHS_Number]
+
+    left join [Client_BTP_RW].[DOH101_aut] as au
+  on rckd.[Pseudo_NHS_Number] = au.[Pseudo_NHS_Number]
+
+    left join [Client_BTP_RW].[DOH101_bipol] as bi
+  on rckd.[Pseudo_NHS_Number] = bi.[Pseudo_NHS_Number]
+
+
+  
+
+  order by [Pseudo_NHS_Number], [Date]
+  ``` 
+  

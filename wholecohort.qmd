@@ -12,13 +12,13 @@ This page is to display the egfr trends
 library(readr)
 library(ggplot2)
 library(dplyr)
+library(data.table)
 ```
 
 The first set is those surprisingly few with egfr < 30 but no ckd code
 ```{r}
 
-nockdegfr <- read_csv("P:/CKDMH/Secure_data/nockdegfr.csv", 
-    col_types = cols(ConceptID = col_character()))
+nockdegfr <- fread("P:/CKDMH/Secure_data/nockdegfr.csv")
 View(nockdegfr)
 ```
 
@@ -32,7 +32,7 @@ ggplot(data =,aes(x= daysSinceFirst, y = value_num, group = Pseudo_NHS_Number, c
 
 
 ```{r}
-wholeegfr_cohort <- read_csv("P:/CKDMH/Secure_data/wholeegfr cohort.csv", col_types = cols(ConceptID = col_character()))
+wholeegfr_cohort <- fread("P:/CKDMH/Secure_data/wholeegfr cohort.csv")
 ```
 
 
@@ -42,4 +42,5 @@ wholeegfr_cohort <- read_csv("P:/CKDMH/Secure_data/wholeegfr cohort.csv", col_ty
 wholeegfr_cohort %>%
  filter( daysSinceFirst <120, daysSinceFirst > -1, value_num < 90) %>%
 ggplot(data =,aes(x= daysSinceFirst, y = value_num, group = Pseudo_NHS_Number, colour = Pseudo_NHS_Number)) + geom_line()+theme(legend.position = "none")
+#dev.off()
 ```

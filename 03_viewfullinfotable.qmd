@@ -18,11 +18,20 @@ library(odbc)
 library(lcmm)
 library(dplyr)
 library(ggplot2)
+library(survival)
 ```
+
+
 
 ```{r}
 
-
+con <- dbConnect(odbc(), driver = "ODBC Driver 18 for SQL Server", 
+                      server = "sql-uks-dme-01.database.windows.net", 
+                      database = "sql-nw-dme-01",
+                      UID = "David.O-hagan@acp.ardengemcsu.nhs.uk",
+                      Authentication = "ActiveDirectoryInteractive", 
+                 ,TrustServerCertificate = "yes"
+                 ,Encrypt = 'yes',timeout = 10)
 #dbListTables(con)
 
 
@@ -35,10 +44,13 @@ library(ggplot2)
 
 ```{sql connection = con, output.var = "M1_results" }
 
-select top(1) *
--- [Pseudo_NHS_Number]
--- ,[daysSinceFirst]
---,[value_num]
+select --top(1) *
+ [Pseudo_NHS_Number]
+ ,[daysSinceFirst]
+ ,[Deceased]
+ ,[DeathDate]
+  ,[daysSinceFirst30]
+,[value_num]
 
 
 from 
@@ -61,6 +73,13 @@ M1_results <- as.data.frame(M1_results)
 
 head(M1_results)
 
+```
+
+
+
+```{r}
+
+
 ID <- as.data.frame(unique(M1_results$Pseudo_NHS_Number),col.names = Pseudo_NHS_Number)
 ID$ID <- seq.int(nrow(ID))
 colnames(ID)[1] <- "Pseudo_NHS_Number"
@@ -69,6 +88,9 @@ head(ID)
 M1_results <- left_join(M1_results, ID,  by = "Pseudo_NHS_Number")
 
 smaller <- subset(M1_results, ID < 1000 )
+M1_results <- 0
+smaller$Deceased <- is.factor(smaller$Deceased, levels=c("Y","N"))
+summary(smaller)
 ```
 
 
@@ -150,7 +172,7 @@ ggplot(data =,aes(x= daysSinceFirst, y = value_num, group = Pseudo_NHS_Number, c
 
 
 ```{r}
-model1 <- lm(value_num ~ daysSinceFirst + ID, data = M1_results)
+model1 <- lm(value_num ~ daysSinceFirst + ID, data = smaller)
 summary(model1)
 
 mod2 <- hlme(value_num ~ daysSinceFirst, random =  ~ daysSinceFirst,mixture = ~ daysSinceFirst, subject = ID, data = smaller2, ng = 3 , B = mod1)

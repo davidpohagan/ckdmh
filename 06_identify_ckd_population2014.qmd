@@ -27,7 +27,14 @@ library(dplyr)
 
 ```{r}
 
-
+con <- dbConnect(odbc(), driver = "ODBC Driver 18 for SQL Server", 
+                      server = "sql-uks-dme-01.database.windows.net", 
+                      database = "sql-nw-dme-01",
+                      UID = "David.O-hagan@acp.ardengemcsu.nhs.uk",
+                      Authentication = "ActiveDirectoryInteractive", 
+                 ,TrustServerCertificate = "yes"
+                 ,Encrypt = 'yes',timeout = 10)
+#dbListTables(con)
 
 ```
 

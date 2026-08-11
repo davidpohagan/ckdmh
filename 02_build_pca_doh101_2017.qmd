@@ -20,7 +20,14 @@ library(odbc)
 
 ```{r}
 
-
+con <- dbConnect(odbc(), driver = "ODBC Driver 18 for SQL Server", 
+                      server = "sql-uks-dme-01.database.windows.net", 
+                      database = "sql-nw-dme-01",
+                      UID = "David.O-hagan@acp.ardengemcsu.nhs.uk",
+                      Authentication = "ActiveDirectoryInteractive", 
+                 ,TrustServerCertificate = "yes"
+                 ,Encrypt = 'yes',timeout = 10)
+dbListTables(con)
 
 
 ##Data Source=sql-uks-dme-01.database.windows.net;Initial Catalog=sql-nw-dme-01;Persist Security Info=False;User ID=David.O-hagan@acp.ardengemcsu.nhs.uk;Pooling=False;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=True;Authentication=ActiveDirectoryInteractive;Application Name="SQL Server Management Studio";Command Timeout=0
