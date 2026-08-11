@@ -1,0 +1,186 @@
+---
+title: "03 combined tables full information"
+format: html
+---
+
+## A
+
+This code is useable for the sql-uks-dme-01 database
+
+```{r}
+#| label: library
+#| echo: false
+#| message: false
+#| warning: false
+
+library(DBI)
+library(odbc)
+library(lcmm)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+
+con <- dbConnect(odbc(), driver = "ODBC Driver 18 for SQL Server", 
+                      server = "sql-uks-dme-01.database.windows.net", 
+                      database = "sql-nw-dme-01",
+                      UID = "David.O-hagan@acp.ardengemcsu.nhs.uk",
+                      Authentication = "ActiveDirectoryInteractive", 
+                 ,TrustServerCertificate = "yes"
+                 ,Encrypt = 'yes',timeout = 10)
+#dbListTables(con)
+
+
+```
+
+
+
+
+
+
+```{sql connection = con, output.var = "M1_results" }
+
+select top(1) *
+-- [Pseudo_NHS_Number]
+-- ,[daysSinceFirst]
+--,[value_num]
+
+
+from 
+  client_BTP_RW.DOH101_fullinforanked
+
+
+
+
+
+```
+
+```{r}
+#| echo: false 
+#|  message: false 
+#|  warning: false 
+#M1_results <- M2_results
+M1_results <- as.data.frame(M1_results) 
+#M1_results <- group_by(M1_results$Pseudo_NHS_Number)
+#head(M1_results)
+
+head(M1_results)
+
+ID <- as.data.frame(unique(M1_results$Pseudo_NHS_Number),col.names = Pseudo_NHS_Number)
+ID$ID <- seq.int(nrow(ID))
+colnames(ID)[1] <- "Pseudo_NHS_Number"
+head(ID)
+
+M1_results <- left_join(M1_results, ID,  by = "Pseudo_NHS_Number")
+
+smaller <- subset(M1_results, ID < 1000 )
+```
+
+
+```{r}
+smaller %>%
+ filter( daysSinceFirst <120, daysSinceFirst > -1, value_num < 90) %>%
+ggplot(data =,aes(x= daysSinceFirst, y = value_num, group = Pseudo_NHS_Number, colour = Pseudo_NHS_Number)) + geom_line()+theme(legend.position = "none")
+```
+```{r}
+# Load required packages
+library(dplyr)
+library(lubridate)
+library(slider)   # for rolling windows
+
+# Example dataset
+#set.seed(123)
+#df <- data.frame(
+# # id = rep(1:3, each = 8),
+#  date = as.Date("2020-01-01") + sample(0:900, 24, #replace = TRUE),
+#  value = runif(24, 50, 100)
+#)
+
+# Ensure data is sorted
+smaller2 <- smaller2 %>%
+  arrange(ID,daysSinceFirst )
+
+
+
+# Function to calculate slope (gradient) in a window
+calc_slope <- function(daysSinceFirst, value_num) {
+  if (length(value_num) < 2) return(NA_real_)  # Need at least 2 points
+  # Convert dates to numeric years for slope per year
+  x <- as.numeric(daysSinceFirst) / 365.25
+  model <- lm(values ~ x)
+  coef(model)[2]  # slope
+}
+
+
+
+
+
+# Apply rolling 12-month slope per ID
+result <- smaller2 %>%
+  group_by(ID) %>%
+  mutate(
+    slope_12m = slide_index_dbl(
+      .x = value_num,
+      .i = daysSinceFirst,
+      .f = ~ calc_slope(daysSinceFirst[.x_index], .x),
+      .before = months(12),
+      .complete = TRUE
+    )
+  ) %>%
+  ungroup()
+
+print(result)
+```
+
+
+
+
+```{r}
+smaller2 <- subset(smaller, daysSinceFirst > 0 & daysSinceFirst <120 & ID < 100)
+
+mod1 <- hlme(value_num ~ daysSinceFirst, random =  ~ daysSinceFirst, subject = ID, data = smaller2)
+
+mod1
+summary(mod1)
+```
+
+
+
+```{r}
+smaller2 %>%
+ filter( daysSinceFirst <120, daysSinceFirst > -1, value_num < 90) %>%
+ggplot(data =,aes(x= daysSinceFirst, y = value_num, group = Pseudo_NHS_Number, colour = Pseudo_NHS_Number)) + geom_line()+theme(legend.position = "none")
+```
+
+
+
+```{r}
+model1 <- lm(value_num ~ daysSinceFirst + ID, data = M1_results)
+summary(model1)
+
+mod2 <- hlme(value_num ~ daysSinceFirst, random =  ~ daysSinceFirst,mixture = ~ daysSinceFirst, subject = ID, data = smaller2, ng = 3 , B = mod1)
+
+mod2
+```
+
+
+```{r}
+M1_results$X_CCG_OF_RESIDENCE <- as.factor(M1_results$X_CCG_OF_RESIDENCE ) 
+M1_results$Pseudo_NHS_Number <- as.factor(M1_results$Pseudo_NHS_Number ) 
+M1_results$X_CCG_OF_REGISTRATION <- as.factor(M1_results$X_CCG_OF_REGISTRATION ) 
+M1_results$Sex <- as.factor(M1_results$Sex ) 
+M1_results$IMD_Score <- as.integer(M1_results$IMD_Score)
+M1_results$InterpreterRequired <- as.factor(M1_results$InterpreterRequired)
+M1_results$Age <- as.integer(M1_results$Age)
+#M1_results$Agegrp <- as.factor((M1_results$Agegrp))
+
+#M1_results$EthnicMainGroup <- as.factor(M1_results$EthnicMainGroup ) 
+M1old <- M1_results[M1_results$Age >= 18,] 
+M1older<- M1_results[M1_results$Age >= 35,] 
+
+summary(M1_results$X_CCG_OF_RESIDENCE)
+```
+
+
+

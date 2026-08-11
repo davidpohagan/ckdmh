@@ -1,0 +1,323 @@
+---
+title: "select ckd population"
+format: html
+---
+
+## Identify CKD population 2017-2020
+
+This code is useable for the sql-uks-dme-01 database
+
+```{r}
+#| label: library
+#| echo: false
+#| message: false
+#| warning: false
+
+library(DBI)
+library(odbc)
+library(gt)
+library(gtsummary)
+library(ggplot2)
+library(readr) 
+library(data.table)
+library(tidyr)
+library(pyramid)
+library(dplyr)
+```
+
+```{r}
+
+con <- dbConnect(odbc(), driver = "ODBC Driver 18 for SQL Server", 
+                      server = "sql-uks-dme-01.database.windows.net", 
+                      database = "sql-nw-dme-01",
+                      UID = "David.O-hagan@acp.ardengemcsu.nhs.uk",
+                      Authentication = "ActiveDirectoryInteractive", 
+                 ,TrustServerCertificate = "yes"
+                 ,Encrypt = 'yes',timeout = 10)
+#dbListTables(con)
+
+```
+
+### Kidney related codes
+
+The following selection are people with Kidney related codes.
+
+These have been selected by searching for kidney, gfr, acr and ckd.
+
+```{sql connection = con}
+drop table if exists Client_BTP_RW.DOH100_PCAM
+
+
+  
+select * into [Client_BTP_RW].[DOH100_PCAM]
+
+ from client_BTP_RW.DOH101_PCA
+union all 
+select * from client_BTP_RW.DOH101_PCAa
+union all
+select * from client_BTP_RW.DOH101_PCAb
+union all 
+select * from client_BTP_RW.DOH101_PCAc
+```
+
+## Tracking patients with kidney diagnoses 2023-2025
+
+```{sql connection=con, output.var="M2_results"}
+
+#| echo: false  
+
+drop table if exists Client_BTP_RW.DOH101_CKDpopn
+
+
+  
+select   Pseudo_NHS_Number,  PCA.ConceptID,  Date,  Value,  Type,  C.Term 
+
+ into [Client_BTP_RW].[DOH101_CKDpopn]  
+   
+from  
+  client_BTP_RW.DOH101_PCA
+ as PCA 
+
+
+left join client_BTP_RW.DOH101_codelist as C 
+on   PCA.ConceptID = C.ConceptID  
+
+where    
+Term like '%chronic kidney%'    
+or Term like '%ckd%'   
+or Term like '%gfr%'   
+or Term like '%albuminur%'   
+or Term like '%ACR%'
+or Term like '%nephr%'
+or Term like  '%rena%'
+or Term like  '%fgs%';
+```
+
+Having identified patients with the codes,
+
+now add the patient details and the kidney codes
+
+```{sql connection = con, output.var = "M1_results" }
+
+select 
+ P.Pseudo_NHS_Number
+--,MAX(case when left(GPPracticeCode,1)='V' then '0' else left(GPPracticeCode,6) end) 
+	,P.X_CCG_OF_REGISTRATION
+    ,P.X_CCG_OF_RESIDENCE
+	,P.Dob
+	,cast(datediff(d,cast(Dob+'-15' AS date),getdate())/365.25 AS int) as Age
+	,P.Sex
+	,P.InterpreterRequired
+  ,P.LSOA_Code
+ -- ,0
+	,P.IMD_Score
+	--,''
+	,P.LAT
+	,P.LONG
+ -- ,P.max(FrailtyScore) as FrailtyScore
+	--,'' as FrailtyLevel
+  ,ConceptID
+  ,  CKD.Date
+  ,  Value
+  ,  Type
+  ,  Term 
+
+
+from 
+  client_BTP_RW.DOH101_CKDpopn as CKD
+
+left join
+  client_BTP_RW.DOH001_MPI as P
+on 
+CKD.Pseudo_NHS_Number = P.Pseudo_NHS_Number
+
+
+
+```
+
+```{r}
+#| echo: false 
+#|  message: false 
+#|  warning: false 
+#M1_results <- M2_results
+M1_results <- as.data.frame(M1_results) 
+#M1_results <- group_by(M1_results$Pseudo_NHS_Number)
+#head(M1_results)
+
+head(M1_results)
+
+M1_results$X_CCG_OF_RESIDENCE <- as.factor(M1_results$X_CCG_OF_RESIDENCE ) 
+M1_results$Pseudo_NHS_Number <- as.factor(M1_results$Pseudo_NHS_Number ) 
+M1_results$X_CCG_OF_REGISTRATION <- as.factor(M1_results$X_CCG_OF_REGISTRATION ) 
+M1_results$Sex <- as.factor(M1_results$Sex ) 
+M1_results$IMD_Score <- as.integer(M1_results$IMD_Score)
+M1_results$InterpreterRequired <- as.factor(M1_results$InterpreterRequired)
+M1_results$Age <- as.integer(M1_results$Age)
+#M1_results$Agegrp <- as.factor((M1_results$Agegrp))
+
+#M1_results$EthnicMainGroup <- as.factor(M1_results$EthnicMainGroup ) 
+M1old <- M1_results[M1_results$Age >= 18,] 
+M1older<- M1_results[M1_results$Age >= 35,] 
+
+summary(M1_results$X_CCG_OF_RESIDENCE)
+```
+
+```{r}
+# use cut to produce age group table
+M1_results$Agegrp <- cut(M1_results$Age, 
+                           breaks = c(0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,150),
+                           labels = c("0-4","5-9","10-14","15-19","20-24","25-29","30-34","35-39","40-44","45-49","50-54","55-59","60-64","65-69","70-74","75-79","80-84","85-89","90+"),
+                           right = FALSE
+)
+```
+
+```{r}
+#| echo: false 
+#| message: false
+#| warning: false 
+ # to make population pyramid 
+Pyramid1 <- M1_results[,c("Agegrp","Sex")]  
+Pyramid1 <- setDT(Pyramid1)[,.N, keyby= c("Agegrp","Sex")] 
+Pyramid1 <- as.data.frame(Pyramid1) 
+
+#Pyramid1 %% pivot_wider(names_from = Pyramid1$Sex , values_from = Pyramid1$N )  
+Pyramid1 <- reshape(Pyramid1, idvar = "Agegrp", timevar = "Sex", direction = "wide" ) 
+colnames(Pyramid1)[colnames(Pyramid1)== "N.F"] <- "female" 
+colnames(Pyramid1)[colnames(Pyramid1)== "N.M"] <- "male" 
+
+Pyramid1 <- Pyramid1[,c("male","female","Agegrp")] 
+
+ pyramid(Pyramid1, main = "Population Pyramid for CKD C&M ICB ", Laxis = seq(0,200000, len=5))    
+
+#Pyramid1   
+
+#4% *2347979 = 93,919.16  #7% * total pop = 114,392.81
+```
+
+The whole population contains people approximately 50% M/F
+
+```{r}
+```
+
+```{r}
+#| echo: false
+#|   message: false 
+#|   warning: false 
+
+#tbl_summary(M1_results)
+
+
+head(M1_results) 
+M1_results$ConceptID <- as.factor(M1_results$ConceptID)  
+M1_results$Value <- as.integer(M1_results$Value) 
+M1_results$Pseudo_NHS_Number <- as.factor(M1_results$Pseudo_NHS_Number) 
+M1_results$Type <-as.factor(M1_results$Type)
+
+
+
+
+
+summary(M1_results$eGFR)
+unique(M1_results)
+str(M1_results)
+M1_results %>% group_by(Pseudo_NHS_Number) %>% filter(CKD == TRUE)
+summary(M1_results$Pseudo_NHS_Number)
+```
+
+```{r}
+#kidney <- M1_results %>%    select( Date, Value,Term) 
+
+#kidney %>% 
+ # tbl_summary(  ) %>%   
+  #bold_labels() %>%   
+  #italicize_levels()
+```
+
+These have been further selected by single codes which are the most frequently used. That is eGFR EPI and CKD.
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+## the egfrtab isolates all rows where there is an egfr
+## the ckdtab isolates all rows where there is a ckd3 code
+
+egfrtab <- M1_results[M1_results$ConceptID == '1011481000000105',]
+#pt1 <- egfrtab[  egfrtab$Pseudo_NHS_Number == '719C0A9DA6D3EF4AF01F384FC473C92BE449CBFBA55D11E3234166259B00D6A3', ]  
+ M1_results$CKD = ifelse(M1_results$ConceptID == '433144002',TRUE,FALSE)
+ M1_results$eGFR = ifelse(M1_results$ConceptID == '1011481000000105',TRUE,FALSE)
+ 
+summary(egfrtab)
+
+
+
+
+```
+
+```{r}
+# use cut to produce age group table
+egfrtab$Agegrp <- cut(egfrtab$Age, 
+                           breaks = c(0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,150),
+                           labels = c("0-4","5-9","10-14","15-19","20-24","25-29","30-34","35-39","40-44","45-49","50-54","55-59","60-64","65-69","70-74","75-79","80-84","85-89","90+"),
+                           right = FALSE
+)
+# to make population pyramid 
+Pyramid1 <- egfrtab[,c("Agegrp","Sex")]  
+Pyramid1 <- setDT(Pyramid1)[,.N, keyby= c("Agegrp","Sex")] 
+Pyramid1 <- as.data.frame(Pyramid1) 
+
+#Pyramid1 %% pivot_wider(names_from = Pyramid1$Sex , values_from = Pyramid1$N )  
+Pyramid1 <- reshape(Pyramid1, idvar = "Agegrp", timevar = "Sex", direction = "wide" ) 
+colnames(Pyramid1)[colnames(Pyramid1)== "N.F"] <- "female" 
+colnames(Pyramid1)[colnames(Pyramid1)== "N.M"] <- "male" 
+
+Pyramid1 <- Pyramid1[,c("male","female","Agegrp")] 
+
+ pyramid(Pyramid1, main = "Population Pyramid for egfr C&M ICB ", Laxis = seq(0,200000, len=5))    
+
+
+
+```
+
+```{r}
+
+```
+
+```{r}
+# use cut to produce age group table
+ckdtab$Agegrp <- cut(ckdtab$Age, 
+                           breaks = c(0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,150),
+                           labels = c("0-4","5-9","10-14","15-19","20-24","25-29","30-34","35-39","40-44","45-49","50-54","55-59","60-64","65-69","70-74","75-79","80-84","85-89","90+"),
+                           right = FALSE
+)
+
+# to make population pyramid 
+Pyramid1 <- ckdtab[,c("Agegrp","Sex")]  
+Pyramid1 <- setDT(Pyramid1)[,.N, keyby= c("Agegrp","Sex")] 
+Pyramid1 <- as.data.frame(Pyramid1) 
+
+#Pyramid1 %% pivot_wider(names_from = Pyramid1$Sex , values_from = Pyramid1$N )  
+Pyramid1 <- reshape(Pyramid1, idvar = "Agegrp", timevar = "Sex", direction = "wide" ) 
+colnames(Pyramid1)[colnames(Pyramid1)== "N.F"] <- "female" 
+colnames(Pyramid1)[colnames(Pyramid1)== "N.M"] <- "male" 
+
+Pyramid1 <- Pyramid1[,c("male","female","Agegrp")] 
+
+ pyramid(Pyramid1, main = "Population Pyramid for CKD C&M ICB ", Laxis = seq(0,20000, len=5))    
+
+```
+
+```{r}
+#| echo: false 
+#|  message: false 
+#|  warning: false 
+#library(ggplot2) 
+egfrtab <- as.data.table(egfrtab[egfrtab$Value < 30,]  )
+head(egfrtabs)
+egfrtabs <- egfrtab[Age == 80,]
+
+
+ggplot(data = egfrtabs, aes(y = Value, x =  Date, group = Pseudo_NHS_Number))+   geom_line(  )
+```
+
+0all

@@ -1,0 +1,112 @@
+---
+title: "02 add events"
+format: html
+---
+
+## Add Events to 2017
+
+This code is useable for the sql-uks-dme-01 database
+
+```{r}
+#| label: library
+#| echo: false
+#| message: false
+#| warning: false
+
+library(DBI)
+library(odbc)
+
+```
+
+```{r}
+
+con <- dbConnect(odbc(), driver = "ODBC Driver 18 for SQL Server", 
+                      server = "sql-uks-dme-01.database.windows.net", 
+                      database = "sql-nw-dme-01",
+                      UID = "David.O-hagan@acp.ardengemcsu.nhs.uk",
+                      Authentication = "ActiveDirectoryInteractive", 
+                 ,TrustServerCertificate = "yes"
+                 ,Encrypt = 'yes',timeout = 10)
+dbListTables(con)
+
+
+##Data Source=sql-uks-dme-01.database.windows.net;Initial Catalog=sql-nw-dme-01;Persist Security Info=False;User ID=David.O-hagan@acp.ardengemcsu.nhs.uk;Pooling=False;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=True;Authentication=ActiveDirectoryInteractive;Application Name="SQL Server Management Studio";Command Timeout=0
+
+#dbDisconnect(con)
+#130
+```
+
+```{sql connection=con, output.var="M2_results"}
+/****** This is derived from Justine Wiltshire script and method ******/
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+/*CREATE PRIMARY CARE ACTIVTY TABLE*/
+-------------------------------------------------------------------------------------------------------------------------------------------------
+drop table if exists Client_BTP_RW.DOH101_PCA
+/*create table Client_SystemP_RW.RP101_PCA (
+	[Pseudo_NHS_Number] [nvarchar](2000) NULL,
+	[Date] [date] NULL,
+	[Code] [nvarchar](50) NULL,
+	[GroupName] [nvarchar](250) NULL,
+	[Value] [float] NULL,
+	[Type] [varchar](2) NULL)*/
+
+--=120mins, count=(28459281 rows affected) ? 1/4 time 40 mins..
+
+select 
+  Pseudo_NHS_Number
+, ENEV.Date
+	,ConceptID
+	,Code
+  ,GroupName
+	,Value
+	,Type
+	
+into Client_BTP_RW.DOH101_PCA	
+	
+from Client_BTP.vw_Cipha_SharedCare_Patient as P
+
+left join 
+		(select FK_Patient_ID, FK_Reference_SnomedCT_ID, EventDate as Date, Value, 'EV' as Type
+		from Client_BTP.vw_Cipha_SharedCare_GP_Events
+			union all
+		select FK_Patient_ID, FK_Reference_SnomedCT_ID, EncounterDate as Date, '0' as Value, 'EN' as Type
+		from Client_BTP.vw_Cipha_SharedCare_GP_Encounters
+		) as ENEV
+
+	on P.PK_Patient_ID = ENEV.FK_Patient_ID
+
+left join Client_BTP.vw_Cipha_SharedCare_Reference_SnomedCT as S
+	on S.PK_Reference_SnomedCT_ID = ENEV.FK_Reference_SnomedCT_ID
+
+left join Client_BTP_RW.RP_ref_groupcodes_terms_2 as REF    --- updated the group codes here
+	on S.ConceptID = REF.ConceptCode
+
+where P.FK_Reference_Tenancy_ID = 2
+	and Pseudo_NHS_Number is not null
+	and ConceptID is not null
+	and Date>'2014-04-01'
+	and Date <'2017-04-01'
+	
+group by P.Pseudo_NHS_Number 
+	, ENEV.Date 
+	,S.ConceptID
+	,REF.GroupName
+	,Code
+,Value
+	,Type
+
+
+```
+
+```         
+```
+
+```         
+```
+
+```         
+```
+
+```         
+```

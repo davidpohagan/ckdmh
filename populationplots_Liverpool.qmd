@@ -1,0 +1,98 @@
+---
+title: "processing"
+format: html
+---
+
+This starts the process of understanding the population
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+library(readr)
+library(ggplot2)
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+ mpitable99A <- read_csv("P:/CKDMH/Secure_data/mpi99atable.csv",  col_names = FALSE)
+
+
+
+mpitable99A$X3 <- as.factor(mpitable99A$X3)
+mpitable99A$X2 <- as.factor(mpitable99A$X2)
+mpitable99A$X4 <- as.factor(mpitable99A$X4)
+#mpitable99A$X5 <- as.factor(mpitable99A$X5)
+mpitable99A$X7 <- as.factor(mpitable99A$X7)
+mpitable99A$X8 <- as.factor(mpitable99A$X8)
+mpitable99A$X9 <- as.factor(mpitable99A$X9)
+mpitable99A$X11 <- as.factor(mpitable99A$X11)
+mpitable99A$X12 <- as.factor(mpitable99A$X12)
+mpitable99A$X13<- as.factor(mpitable99A$X13)
+mpitable99A$X14 <- as.factor(mpitable99A$X14)
+mpitable99A$X16 <- as.factor(mpitable99A$X16)
+
+```
+
+```{r}
+colnames(mpitable99A)[1] <- 'Pseudo_NHS_Number'
+colnames(mpitable99A)[2] <- 'practice_code'
+colnames(mpitable99A)[3] <- 'CCG_registered'
+colnames(mpitable99A)[4] <- 'CCG_residence'
+colnames(mpitable99A)[5] <- 'Dob'
+colnames(mpitable99A)[6] <- 'Age'
+colnames(mpitable99A)[7] <- 'Sex'
+colnames(mpitable99A)[8] <- 'Deceased'
+colnames(mpitable99A)[9] <- 'LSOA'
+colnames(mpitable99A)[10] <- 'Ethnicity_code'
+colnames(mpitable99A)[11] <- ''
+colnames(mpitable99A)[12] <- ''
+colnames(mpitable99A)[13] <- ''
+colnames(mpitable99A)[14] <- ''
+colnames(mpitable99A)[15] <- 'IMD_Score'
+colnames(mpitable99A)[16] <- ''
+
+
+
+```
+
+```{r}
+summary(mpitable99A)
+
+head(mpitable99A)
+
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+#IMD_Livquan <- quantile(mpitable99A$IMD_Score, breaks = 5, labels = c("most dep","med dep","middle dep","less dep","least dep"))
+
+
+mpitable99A$IMD_Livquin2 <- cut(mpitable99A$IMD_Score, breaks = c(0,0.0356,0.0537,0.1389,0.8889,1.0))
+
+
+ggplot(mpitable99A,aes(x = mpitable99A$IMD_Livquin2)) +geom_bar()
+
+ggplot(mpitable99A,aes(x = -log( mpitable99A$IMD_Score))) +geom_bar()
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+
+ ggplot(data  =mpitable99A, aes(x = mpitable99A$CCG_registered, colour =  mpitable99A$Sex)) + geom_bar(position = "dodge")
+ 
+ 
+  ggplot(data  =mpitable99A, aes(x = mpitable99A$X6, colour =  mpitable99A$X7)) + geom_histogram(position = "dodge")
+
+  
+   ggplot(data  =mpitable99A, aes(x = mpitable99A$X6,y = X15, )) + geom_line() + geom_smooth()
+  
+```
