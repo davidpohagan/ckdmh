@@ -20,13 +20,7 @@ library(odbc)
 
 ```{r}
 
-con <- dbConnect(odbc(), driver = "ODBC Driver 17 for SQL Server", 
-                      server = "sql-uks-dme-01.database.windows.net", 
-                      database = "sql-nw-dme-01",
-                      UID = "David.O-hagan@acp.ardengemcsu.nhs.uk",
-                      Authentication = "ActiveDirectoryInteractive", timeout = 10)
 
-#dbDisconnect(con)
 ```
 
 ```{sql connection=con, output.var="M1_results"}
