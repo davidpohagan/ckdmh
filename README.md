@@ -6,6 +6,27 @@ Code lists from opencodelists in SNOMED-CT for identifying cases
 
 core datasets not available publically, as very sensitive data with specific controls.
 
+Question one
+
+What is the pattern of incidence and prevalence of ckd and what is its relationship with mental health conditions 
+
+How has this changed over time
+
+Question two
+
+How much does this cost?
+How different are the costs with different changes
+
+Question three
+
+what is the relationship between imd and mental health in ckd and survival/ 
+
+
+Question four
+How do trajectory models support care for individuals and how can changes in trajectory happen ? meds
+
+
+
 Opencodelist links
 https://www.opencodelists.org/codelist/user/davidohagan/ckd-and-mental-health-cohort-identification/2814758e/
 https://www.opencodelists.org/codelist/user/davidohagan/ckd-and-mental-health-descriptive-variables/2ac73584/
