@@ -1,0 +1,58 @@
+# Install the high-performance stratified sampling package
+install.packages("splitstackshape")
+library(splitstackshape)
+library(data.table)
+
+# Convert your main dataset to a high-speed data.table
+setDT(main_dataset)
+
+# 1. Define your exact target sample sizes for the 9 locations
+target_sizes <- c(200000, 180000, 150000, 120000, 100000, 80000, 60000, 50000, 40000)
+total_target_n <- sum(target_sizes) # Total subset pool = 980,000 patients
+
+# 2. Convert these targets into exact percentages of the total required pool
+split_proportions <- target_sizes / total_target_n
+print(split_proportions) 
+# Outputs the target allocation weights (e.g., ~20.4%, ~18.3%, down to ~4.1%)
+
+
+# Stratify by your key interaction predictors
+stratified_pool <- stratified(
+  df = main_dataset, 
+  group = c("baseline_mental_health", "imd_quintile", "baseline_dm"), 
+  size = total_target_n / nrow(main_dataset) # Fraction of total data to pull
+)
+
+
+# 1. Create a tracking label vector matching your exact size requirements
+location_labels <- c(
+  rep("Location_1_200k", 200000),
+  rep("Location_2_1800k", 180000),
+  rep("Location_3_1500k", 150000),
+  rep("Location_4_1200k", 120000),
+  rep("Location_5_100k",  100000),
+  rep("Location_6_80k",   80000),
+  rep("Location_7_60k",   60000),
+  rep("Location_8_50k",   50000),
+  rep("Location_9_40k",   40000)
+)
+
+# 2. Shuffle the labels randomly so they aren't grouped by order
+set.seed(42) # For reproducibility
+shuffled_labels <- sample(location_labels)
+
+# 3. Assign the shuffled labels to your stratified patient pool
+stratified_pool[, study_site := shuffled_labels]
+
+# 4. Split the data.table into a clean list of 9 distinct dataframes
+split_datasets <- split(stratified_pool, by = "study_site")
+
+
+# Access the 200k location dataset
+data_site_1 <- split_datasets[["Location_1_200k"]]
+
+# Access the 40k location dataset
+data_site_9 := split_datasets[["Location_9_40k"]]
+
+# Quick verification: Check that the sizes match perfectly
+table(stratified_pool$study_site)
