@@ -1,0 +1,76 @@
+
+
+library(DBI)
+library(odbc)
+library(dplyr)
+
+# Open a SINGLE connection block that prompts for MFA just ONCE
+con <- dbConnect(odbc::odbc(),
+                 Driver   = "ODBC Driver 17 for SQL Server", # Ensure Driver 17 or higher is installed
+                 Server   = "YOUR_SERVER_NAME.database.windows.net",
+                 Database = "YOUR_DATABASE_NAME",
+                 Authentication = "ActiveDirectoryInteractive") # Triggers your interactive MFA prompt
+
+# --- Your MFA prompt (Authenticator App, SMS, etc.) will trigger here ---
+# Once approved, this 'con' object remains authenticated for your entire session.
+
+
+# 1. Download the list of active batch queue IDs using your open connection
+batch_indices <- dbGetQuery(con, 
+  "SELECT DISTINCT universal_batch_id FROM Production_Batch_Queue ORDER BY universal_batch_id"
+)$universal_batch_id
+
+# 2. Pre-stage a local results container 
+# This prevents writing back to SQL mid-loop if your server has strict write-policies under MFA
+local_results_log <- list()
+
+# next section
+for(b_id in batch_indices) {
+  
+  message(paste("Processing Batch ID:", b_id, "at", Sys.time()))
+  
+  # Stream data using the open connection (No new login prompt triggered)
+  current_batch_data <- dbGetQuery(con, 
+    paste("SELECT * FROM Production_Batch_Queue WHERE universal_batch_id =", b_id)
+  )
+  
+  # Extract metadata
+  site_name <- current_batch_data$assigned_study_site[1]
+  
+  # Run the joint model
+  model_fit <- tryCatch({
+    Jointlcmm(fixed = eGFR ~ observation_time, mixture = ~ observation_time,
+              random = ~ observation_time, subject = "patient_id",
+              classmb = ~ baseline_bp + baseline_dm + baseline_mental_health * imd_quintile,
+              survival = Surv(time, status) ~ mixture(cohort), 
+              hazard = "3-quant-splines", hazardtype = "CompetingRisks",
+              data = current_batch_data, ng = 3, B = m1)
+  }, error = function(e) { NULL })
+  
+  # Store parameters locally in your list
+  if(!is.null(model_fit)) {
+    target_idx <- grep("baseline_mental_healthModerate/Severe:imd_quintile1", names(model_fit$best))
+    
+    local_results_log[[paste0("Batch_", b_id)]] <- data.frame(
+      universal_batch_id = b_id,
+      assigned_study_site = site_name,
+      interaction_log_odds = model_fit$best[target_idx],
+      interaction_variance = diag(model_fit$V)[target_idx]
+    )
+  }
+  
+  # Critical memory flush
+  rm(current_batch_data, model_fit)
+  gc()
+}
+
+
+
+# 1. Combine all individual batch results into one master data frame
+final_output_df <- do.call(rbind, local_results_log)
+
+# 2. Write the data to your permanent logging table in a single execution block
+dbWriteTable(con, "Meta_Analysis_Output_Log", final_output_df, append = TRUE)
+
+# 3. Disconnect safely
+dbDisconnect(con)
