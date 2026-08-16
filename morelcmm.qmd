@@ -1,0 +1,43 @@
+# Test if the interaction block as a whole is statistically significant
+# Identify the indices of the interaction terms within your model coefficients
+interaction_indices <- grep("baseline_mental_health.*:imd_quintile", names(m3_interaction$best))
+
+# Run the multivariate Wald test
+wald_result <- WaldMult(m3_interaction, pos = interaction_indices)
+print(wald_result)
+
+
+# Conceptual framework for a Monte Carlo Power Check
+calculate_trajectory_power <- function(target_N, loops = 500) {
+  significant_results <- 0
+  
+  for(i in 1:loops) {
+    # 1. Simulate data matching your exact categorical distributions
+    # Injecting a 5% true effect size for the interaction term
+    simulated_data <- generate_sim_data(N = target_N, true_interaction_effect = 0.05)
+    
+    # 2. Try fitting the model (wrapped in tryCatch to handle convergence drops)
+    fit <- tryCatch({
+      Jointlcmm(fixed = eGFR ~ observation_time, mixture = ~ observation_time, 
+                random = ~ observation_time, subject = "patient_id",
+                classmb = ~ baseline_bp + baseline_dm + baseline_mental_health * imd_quintile,
+                survival = Surv(time, status) ~ mixture(cohort), 
+                hazard = "3-quant-splines", hazardtype = "CompetingRisks",
+                data = simulated_data, ng = 3, verbose = FALSE)
+    }, error = function(e) NULL)
+    
+    # 3. Check if the interaction term p-value is < 0.05
+    if(!is.null(fit)) {
+      p_val <- extract_interaction_p(fit)
+      if(p_val < 0.05) significant_results <- significant_results + 1
+    }
+  }
+  
+  # Return empirical statistical power
+  return(significant_results / loops)
+}
+
+# Example validation check for N = 1000
+# calculate_trajectory_power(target_N = 1000)
+
+# this calcs power
