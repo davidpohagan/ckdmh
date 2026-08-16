@@ -1,0 +1,64 @@
+library(dplyr)
+library(dbplyr)
+library(lcmm)
+
+# Containers for coefficients (beta) and variances (se^2) of your target interaction term
+beta_vector <- c()
+var_vector  <- c()
+
+for(batch in 1:20) {
+  
+  message(paste("Processing Big Site - Batch:", batch, "at", Sys.time()))
+  
+  # 1. Stream the current 10k batch into local RAM
+  batch_data <- combined_cohort_db %>%
+    filter(assigned_study_site == "Location_1_200k" & processing_batch_id == batch) %>%
+    collect()
+  
+  # 2. Fit the model
+  model_fit <- tryCatch({
+    Jointlcmm(fixed = eGFR ~ observation_time, mixture = ~ observation_time,
+              random = ~ observation_time, subject = "patient_id",
+              classmb = ~ baseline_bp + baseline_dm + baseline_mental_health * imd_quintile,
+              survival = Surv(time, status) ~ mixture(cohort), 
+              hazard = "3-quant-splines", hazardtype = "CompetingRisks",
+              data = batch_data, ng = 3, B = m1)
+  }, error = function(e) { NULL })
+  
+  # 3. Extract the target interaction coefficient and its variance
+  if(!is.null(model_fit)) {
+    # Find the specific index of your target multi-level interaction term
+    target_idx <- grep("baseline_mental_healthModerate/Severe:imd_quintile1", names(model_fit$best))
+    
+    beta_vector[batch] <- model_fit$best[target_idx]
+    var_vector[batch]  <- diag(model_fit$V)[target_idx] # Variance is standard error squared
+  }
+  
+  # 4. Flush memory completely before the next iteration
+  rm(batch_data, model_fit)
+  gc()
+}
+
+
+# 1. Calculate weights (the inverse of the variance)
+weights <- 1 / var_vector
+
+# 2. Compute the pooled Log-Odds coefficient
+pooled_beta <- sum(beta_vector * weights) / sum(weights)
+
+# 3. Compute the pooled Standard Error
+pooled_se <- sqrt(1 / sum(weights))
+
+# 4. Convert your pooled results into clean Clinical Odds Ratios (OR)
+pooled_or       <- exp(pooled_beta)
+pooled_lower_ci <- exp(pooled_beta - 1.96 * pooled_se)
+pooled_upper_ci <- exp(pooled_beta + 1.96 * pooled_se)
+pooled_p_val    <- 2 * (1 - pnorm(abs(pooled_beta / pooled_se)))
+
+# Display your final results for the 200k cohort
+cat(paste0(
+  "Final Pooled Analysis for 200k Cohort:\n",
+  "Odds Ratio (OR): ", round(pooled_or, 3), "\n",
+  "95% CI: [", round(pooled_lower_ci, 3), ", ", round(pooled_upper_ci, 3), "]\n",
+  "p-value: ", format.pval(pooled_p_val, digits = 4), "\n"
+))
