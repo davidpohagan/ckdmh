@@ -1,0 +1,29 @@
+```{r}
+# 1. Load the required packages
+library(nlme)
+library(survival)
+library(JM)
+
+# 2. Fit the longitudinal sub-model (using a long-format dataset)
+# Track how a biomarker changes over time, grouping by patient ID
+lme_fit <- lme(biomarker ~ observation_time * cohort, 
+               random = ~ observation_time | patient_id, 
+               data = longitudinal_data)
+
+# 3. Fit the survival sub-model (using a baseline/one-row-per-patient dataset)
+# Crucial: You MUST include 'x = TRUE' so the design matrix is saved
+cox_fit <- coxph(Surv(time, status) ~ cohort + age, 
+                 data = baseline_data, 
+                 x = TRUE)
+
+# 4. Fit the Joint Model
+# This links the shared random effects of both processes
+joint_model <- jointModel(lme_fit, cox_fit, 
+                          timeVar = "observation_time", 
+                          method = "piecewise-PH-aGH")
+
+# 5. View the integrated summary
+summary(joint_model)
+
+
+```
