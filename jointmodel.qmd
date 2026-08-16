@@ -70,4 +70,16 @@ jm_renal <- jm(cox_renal, lme_egfr, time_var = "observation_time")
 summary(jm_renal)
 
 ```
+```{r}
+# 1. Select a specific patient's longitudinal records up to year 2
+patient_data <- longitudinal_data[longitudinal_data$patient_id == "Patient_101" & 
+                                  longitudinal_data$observation_time <= 2, ]
 
+# 2. Compute dynamic predictions (conditional on surviving past year 2)
+pred_joint <- predict(jm_renal, newdata = patient_data, process = "both",
+                      times = seq(2, 10, by = 0.1))
+
+# 3. Generate the unified Joint Plot
+# This automatically displays the eGFR trajectory on top and the survival curve below
+plot(pred_joint)
+```
