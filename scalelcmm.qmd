@@ -1,0 +1,103 @@
+# Convert IMD into a categorical factor with 'Quintile 5' as the reference
+main_dataset$imd_quintile <- factor(main_dataset$imd_quintile, 
+                                    levels = c("5", "4", "3", "2", "1"))
+
+# Verify the structure alongside your other categorical metrics
+str(main_dataset$imd_quintile)
+
+
+library(lcmm)
+
+m3_with_imd <- Jointlcmm(
+  fixed = eGFR ~ observation_time, 
+  mixture = ~ observation_time,
+  random = ~ observation_time, 
+  subject = "patient_id",
+  
+  # Latent class membership predictors including socioeconomic status (IMD)
+  classmb = ~ baseline_mental_health + baseline_bp + baseline_dm + imd_quintile,
+  
+  survival = Surv(time, status) ~ mixture(cohort), 
+  hazard = "3-quant-splines",
+  hazardtype = "CompetingRisks",
+  
+  data = main_dataset, 
+  ng = 3, 
+  B = m1 # Initial parameters vector
+)
+
+
+
+# 1. Extract coefficients and standard errors
+estimates <- m3_with_imd$best
+se <- sqrt(diag(m3_with_imd$V))
+
+# 2. Isolate rows corresponding to class membership
+mb_rows <- grep("classmb", names(estimates))
+
+# 3. Compile clean, interpretable Odds Ratios
+or_table_full <- data.frame(
+  Variable = names(estimates)[mb_rows],
+  Odds_Ratio = exp(estimates[mb_rows]),
+  Lower_95_CI = exp(estimates[mb_rows] - 1.96 * se[mb_rows]),
+  Upper_95_CI = exp(estimates[mb_rows] + 1.96 * se[mb_rows]),
+  p_value = 2 * (1 - pnorm(abs(estimates[mb_rows] / se[mb_rows])))
+)
+
+# Print results rounded to 3 decimal places
+print(round(or_table_full[, 2:5], 3))
+
+
+
+#add mental health
+library(lcmm)
+
+m3_interaction <- Jointlcmm(
+  fixed = eGFR ~ observation_time, 
+  mixture = ~ observation_time,
+  random = ~ observation_time, 
+  subject = "patient_id",
+  
+  # 'classmb' now includes the multi-level categorical interaction effect
+  classmb = ~ baseline_bp + baseline_dm + baseline_mental_health * imd_quintile,
+  
+  survival = Surv(time, status) ~ mixture(cohort), 
+  hazard = "3-quant-splines",
+  hazardtype = "CompetingRisks",
+  
+  data = main_dataset, 
+  ng = 3, 
+  B = m1 # Vector of initial values from 1-class model
+)
+
+# View the full output parameters
+summary(m3_interaction)
+
+
+# 1. Extract parameters and standard errors
+estimates <- m3_interaction$best
+se <- sqrt(diag(m3_interaction$V))
+
+# 2. Match all rows belonging to the class membership sub-model
+mb_rows <- grep("classmb", names(estimates))
+
+# 3. Create a clean results table
+interaction_or_table <- data.frame(
+  Variable = names(estimates)[mb_rows],
+  Odds_Ratio = exp(estimates[mb_rows]),
+  Lower_95_CI = exp(estimates[mb_rows] - 1.96 * se[mb_rows]),
+  Upper_95_CI = exp(estimates[mb_rows] + 1.96 * se[mb_rows]),
+  p_value = 2 * (1 - pnorm(abs(estimates[mb_rows] / se[mb_rows])))
+)
+
+# View the table
+print(round(interaction_or_table[, 2:5], 3))
+
+
+# Test if the interaction block as a whole is statistically significant
+# Identify the indices of the interaction terms within your model coefficients
+interaction_indices <- grep("baseline_mental_health.*:imd_quintile", names(m3_interaction$best))
+
+# Run the multivariate Wald test
+wald_result <- WaldMult(m3_interaction, pos = interaction_indices)
+print(wald_result)
