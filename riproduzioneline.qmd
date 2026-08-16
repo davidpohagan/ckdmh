@@ -1,0 +1,57 @@
+library(DBI)
+library(odbc)
+library(dplyr)
+library(lcmm)
+
+# 1. Connect to SSMS
+con <- dbConnect(odbc::odbc(), Driver = "SQL Server", Server = "YOUR_SERVER", Database = "YOUR_DB", Trusted_Connection = "True")
+
+# 2. Track total batches available in the queue (Will read 1 to 98 based on active site allocations)
+batch_indices <- dbGetQuery(con, "SELECT DISTINCT universal_batch_id FROM Production_Batch_Queue ORDER BY universal_batch_id")$universal_batch_id
+
+# 3. Execute the Production Loop
+for(b_id in batch_indices) {
+  
+  message(paste("🚀 Executing Global Batch ID:", b_id, "out of", max(batch_indices), "at", Sys.time()))
+  
+  # Stream data for the current batch
+  current_batch_data <- tbl(con, "Production_Batch_Queue") %>%
+    filter(universal_batch_id == b_id) %>%
+    collect()
+  
+  # Track the origin site name for the final data log
+  site_name <- current_batch_data$assigned_study_site[1]
+  
+  # Run the joint model
+  model_fit <- tryCatch({
+    Jointlcmm(fixed = eGFR ~ observation_time, mixture = ~ observation_time,
+              random = ~ observation_time, subject = "patient_id",
+              classmb = ~ baseline_bp + baseline_dm + baseline_mental_health * imd_quintile,
+              survival = Surv(time, status) ~ mixture(cohort), 
+              hazard = "3-quant-splines", hazardtype = "CompetingRisks",
+              data = current_batch_data, ng = 3, B = m1)
+  }, error = function(e) { NULL })
+  
+  # If the model converges successfully, write the parameters straight back to SQL Server
+  if(!is.null(model_fit)) {
+    target_idx <- grep("baseline_mental_healthModerate/Severe:imd_quintile1", names(model_fit$best))
+    
+    # Structure a single row data frame to export
+    output_row <- data.frame(
+      universal_batch_id = b_id,
+      assigned_study_site = site_name,
+      interaction_log_odds = model_fit$best[target_idx],
+      interaction_variance = diag(model_fit$V)[target_idx],
+      timestamp = as.character(Sys.time())
+    )
+    
+    # Append the row to a master table in SSMS
+    dbWriteTable(con, "Meta_Analysis_Output_Log", output_row, append = TRUE)
+  }
+  
+  # Free local system RAM entirely before the next batch streams in
+  rm(current_batch_data, model_fit)
+  gc()
+}
+
+dbDisconnect(con)
