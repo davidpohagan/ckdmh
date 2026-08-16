@@ -1,0 +1,139 @@
+# 1. Load the package
+library(lcmm)
+
+# 2. To avoid local maxima, it is standard practice to first fit a 1-class model 
+# to use as initial parameters (arguments) for multi-class models.
+m1 <- Jointlcmm(fixed = eGFR ~ observation_time, 
+                random = ~ observation_time, 
+                subject = "patient_id",
+                survival = Surv(time, status) ~ mixture(cohort), 
+                hazard = "3-quant-splines", # flexible baseline hazard
+                hazardtype = "CompetingRisks",
+                data = main_dataset, 
+                ng = 1)
+
+# 3. Fit a 3-Class Joint Group-Based Model
+# 'mixture(observation_time)' means the slope varies by group
+# 'mixture(cohort)' lets your cohort variable alter survival risk by class
+m3 <- Jointlcmm(fixed = eGFR ~ observation_time, 
+                mixture = ~ observation_time,
+                random = ~ observation_time, 
+                subject = "patient_id",
+                survival = Surv(time, status) ~ mixture(cohort), 
+                hazard = "3-quant-splines",
+                hazardtype = "CompetingRisks",
+                data = main_dataset, 
+                ng = 3, 
+                B = m1) # Pass 1-class model parameters to initialize values
+
+# 4. View model diagnostics
+summary(m3)
+
+
+# 1. Predict and plot the longitudinal eGFR paths for the 3 groups
+# Generate data for a grid of time points
+grid_time <- data.frame(observation_time = seq(0, 10, length.out = 100))
+
+pred_trajectory <- predictY(m3, newdata = grid_time, var.time = "observation_time")
+plot(pred_trajectory, lty = 1, lwd = 2, main = "Discovered eGFR Trajectory Groups")
+
+# 2. Plot the cumulative risk of your competing endpoints by group
+# This maps out the probability of experiencing ESKD vs Death for each of the 3 classes
+plot(m3, which = "postprob", main = "Posterior Class Allocation Quality")
+plot(m3, which = "hazard", main = "Cause-Specific Hazards Across Classes")
+
+
+library(lcmm)
+
+# Fit a 3-Class Joint Latent Class Model with Baseline Predictors
+m3_with_covariates <- Jointlcmm(
+  # 1. Longitudinal process (eGFR over time)
+  fixed = eGFR ~ observation_time, 
+  mixture = ~ observation_time,
+  random = ~ observation_time, 
+  subject = "patient_id",
+  
+  # 2. Class Membership Predictors 
+  # These variables calculate the probability of a patient belonging to Class 1, 2, or 3
+  classmb = ~ baseline_mental_health + baseline_bp + baseline_dm,
+  
+  # 3. Survival and Competing Risks configuration
+  survival = Surv(time, status) ~ mixture(cohort), 
+  hazard = "3-quant-splines",
+  hazardtype = "CompetingRisks",
+  
+  # Data and Optimization configurations
+  data = main_dataset, 
+  ng = 3, 
+  B = m1 # Pre-run 1-class model parameters to ensure stable convergence
+)
+
+# View model summary containing fixed effects, class predictors, and survival hazards
+summary(m3_with_covariates)
+
+
+# 1. View the overall distribution of patients across the 3 groups
+# This tells you the sample size (N) and percentage share of each trajectory
+postprob(m3_with_covariates)
+
+# 2. Extract a clean dataset mapping each individual patient to their assigned class
+# The model assigns patients to the class for which they have the highest posterior probability
+patient_classes <- m3_with_covariates$pprob[, c("patient_id", "class")]
+
+# View the first few rows
+head(patient_classes)
+
+
+# 1. Convert variables into explicit factors
+main_dataset$baseline_dm <- factor(main_dataset$baseline_dm, 
+                                   levels = c("No", "Yes"))
+
+main_dataset$baseline_bp <- factor(main_dataset$baseline_bp, 
+                                   levels = c("Normal", "Prehypertension", "Hypertension"))
+
+main_dataset$baseline_mental_health <- factor(main_dataset$baseline_mental_health, 
+                                              levels = c("None/Minimal", "Mild", "Moderate/Severe"))
+
+# 2. Verify your formatting
+str(main_dataset[, c("baseline_dm", "baseline_bp", "baseline_mental_health")])
+
+
+library(lcmm)
+
+m3_categorical <- Jointlcmm(
+  fixed = eGFR ~ observation_time, 
+  mixture = ~ observation_time,
+  random = ~ observation_time, 
+  subject = "patient_id",
+  
+  # Latent class membership predictors (now treated strictly as multi-level categories)
+  classmb = ~ baseline_mental_health + baseline_bp + baseline_dm,
+  
+  survival = Surv(time, status) ~ mixture(cohort), 
+  hazard = "3-quant-splines",
+  hazardtype = "CompetingRisks",
+  
+  data = main_dataset, 
+  ng = 3, 
+  B = m1 # Initial parameter vector from your 1-class model
+)
+
+
+# 1. Extract the raw coefficients and variance-covariance matrix
+estimates <- m3_categorical$best
+se <- sqrt(diag(m3_categorical$V))
+
+# 2. Filter specifically for the class membership parameters
+# (Matches the rows containing your categorical baseline variables)
+mb_rows <- grep("classmb", names(estimates))
+
+or_table <- data.frame(
+  Log_Odds = estimates[mb_rows],
+  Odds_Ratio = exp(estimates[mb_rows]),
+  Lower_95_CI = exp(estimates[mb_rows] - 1.96 * se[mb_rows]),
+  Upper_95_CI = exp(estimates[mb_rows] + 1.96 * se[mb_rows]),
+  p_value = 2 * (1 - pnorm(abs(estimates[mb_rows] / se[mb_rows])))
+)
+
+# 3. View the clean clinical risk table
+print(round(or_table, 3))
