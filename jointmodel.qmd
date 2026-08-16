@@ -27,3 +27,24 @@ summary(joint_model)
 
 
 ```
+next to plot changes for separate chorts
+```{r}
+
+# Create individual patient profiles up to time 't' (e.g., 6 months)
+patient_cohort1 <- longitudinal_data[longitudinal_data$patient_id == "Patient_A", ]
+patient_cohort2 <- longitudinal_data[longitudinal_data$patient_id == "Patient_B", ]
+
+# Predict future survival probabilities conditional on their biomarker history
+curve_c1 <- survfitJM(joint_model, newdata = patient_cohort1)
+curve_c2 <- survfitJM(joint_model, newdata = patient_cohort2)
+
+# Plot the curves side by side or overlaid
+par(mfrow = c(1, 2))
+plot(curve_c1, main = "Cohort 1 Patient Survival", xlab = "Time")
+plot(curve_c2, main = "Cohort 2 Patient Survival", xlab = "Time")
+```
+
+
+
+
+
