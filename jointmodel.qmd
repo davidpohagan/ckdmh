@@ -44,7 +44,30 @@ plot(curve_c1, main = "Cohort 1 Patient Survival", xlab = "Time")
 plot(curve_c2, main = "Cohort 2 Patient Survival", xlab = "Time")
 ```
 
+```{r}
+# 1. Load the packages
+library(nlme)
+library(survival)
+library(splines)
+library(JMbayes2)
 
+# 2. Fit the longitudinal eGFR sub-model (using a spline for non-linear time)
+lme_egfr <- lme(eGFR ~ ns(observation_time, knots = c(1, 3)) * cohort + age + sex,
+                random = ~ ns(observation_time, knots = c(1, 3)) | patient_id,
+                data = longitudinal_data)
 
+# 3. Fit the renal survival sub-model 
+# Note: x = TRUE and model = TRUE are mandatory for JMbayes2
+cox_renal <- coxph(Surv(time, event_status) ~ cohort + baseline_proteinuria,
+                   data = baseline_data, 
+                   x = TRUE, model = TRUE)
 
+# 4. Fit the Joint Model
+# By default, this links the true estimated eGFR value at time 't' to survival risk
+jm_renal <- jm(cox_renal, lme_egfr, time_var = "observation_time")
+
+# View hazard ratios for the event and fixed effects for eGFR
+summary(jm_renal)
+
+```
 
