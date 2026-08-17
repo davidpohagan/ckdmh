@@ -19,10 +19,13 @@ High_Risk_Registry AS (
 -- Step 3: Generate operational key performance indicators (KPIs) for break-even
 SELECT 
     p.annual_program_cost AS [Annual Budget Target (£)],
+    
     -- Minimum number of patients who must be saved from transitioning to dialysis to pay for the program
     CEILING(p.annual_program_cost / p.annual_rrt_cost) AS [Required Annual RRT Preventions (Count)],
+   
     -- Percentage of the high-deprivation advanced cohort that represents
     ROUND((p.annual_program_cost / p.annual_rrt_cost) / NULLIF(r.current_stage45_count, 0) * 100.0, 2) AS [Required Conversion Reduction (%)],
+   
     -- Safe operational buffer target (aiming for a 1.5x ROI margin)
     CEILING((p.annual_program_cost * 1.5) / p.annual_rrt_cost) AS [Safe Clinical KPI Target (1.5x ROI)]
 FROM High_Risk_Registry r
