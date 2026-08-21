@@ -1,0 +1,20 @@
+# prevalence 2024
+
+## Prevalence 2024
+
+The prevalence of chronic kidney disease (CKD) is reported to be increasing by the global burden of disease study. 
+ 
+This analysis looks at the prevalence in Cheshire and Merseyside in 2024. Subsequent analysis will look at other markers across time and place.
+
+
+```{r}
+library(DBI)
+library(odbc)
+
+library(ggplot2)
+library(dplyr)
+library(dbpylr)
+
+
+```
+
