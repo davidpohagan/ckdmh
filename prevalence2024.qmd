@@ -33,15 +33,25 @@ con <-
 
 
 
-```{sql}
+```{sql conn = con output.vars = "M1_results"}
 
 
 select
 
 
 
+
+
+
+
+
 ```
 
 
+```{r}
 
+head(M1_results)
+
+
+```
 
